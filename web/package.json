@@ -1,0 +1,16 @@
+{
+  "name": "aikan-static-hls-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun scripts/build.js",
+    "dev": "bun run build && bun scripts/serve.js",
+    "preview": "bun scripts/serve.js"
+  },
+  "dependencies": {
+    "hls.js": "latest",
+    "lru-cache": "latest",
+    "vue": "latest"
+  },
+  "devDependencies": {}
+}
