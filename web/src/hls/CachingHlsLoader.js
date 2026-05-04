@@ -39,9 +39,9 @@ export function createLoaderController(options = {}) {
     config: {
       maxEntries: 240,
       maxBytes: 256 * 1024 * 1024,
-      concurrency: 8,
-      initialSegments: 12,
-      aheadSegments: 24,
+      concurrency: 3,
+      initialSegments: 6,
+      aheadSegments: 9,
       ...options,
     },
     cache: null,

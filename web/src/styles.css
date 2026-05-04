@@ -145,7 +145,40 @@ video {
 }
 
 .toolbar {
+  align-items: stretch;
+}
+
+.toolbar-main,
+.toolbar-side {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 0.65rem;
+}
+
+.toolbar-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toolbar-side {
+  flex: 0 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.segment-position {
+  flex: 0 0 auto;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  padding: 0.28rem 0.45rem;
+  border-radius: 0.5rem;
+  background: rgba(15, 23, 42, 0.55);
 }
 
 .line-select-group,
@@ -157,14 +190,13 @@ video {
 }
 
 .line-select-group {
-  flex: 0 1 auto;
+  flex: 1 1 12rem;
   min-width: 0;
 }
 
 .player-button-group {
   flex: 0 0 auto;
   justify-content: flex-end;
-  margin-left: auto;
 }
 
 .line-select-group select {
@@ -542,6 +574,20 @@ video {
   align-items: center;
   justify-content: flex-end;
   gap: 0.65rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.graph-playing-hint {
+  font-style: normal;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.graph-actions {
+  color: #93c5fd;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .result-item {
@@ -786,6 +832,17 @@ video {
 .segment-cell.failed { background: #f43f5e; color: #ffffff; }
 .segment-cell.evicted { background: #334155; color: #cbd5e1; opacity: 0.72; }
 
+.segment-graph .segment-cell.is-playing {
+  position: relative;
+  z-index: 2;
+  outline: 2px solid #fbbf24;
+  outline-offset: 2px;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.95),
+    0 0 14px rgba(251, 191, 36, 0.55),
+    0 8px 18px rgba(0, 0, 0, 0.18);
+}
+
 .segment-detail {
   position: relative;
   margin-top: 1rem;
@@ -893,29 +950,34 @@ video {
     padding-bottom: 0.1rem;
   }
 
-  .line-select-group {
-    flex: 1 1 auto;
-    min-width: 0;
-    order: 5;
-  }
-
-  .toolbar > .secondary,
-  .toolbar > .ghost.detail-pill,
-  .player-button-group {
-    order: 5;
-  }
-
-  .player-button-group {
-    flex: 0 0 auto;
-    justify-content: flex-start;
-    margin-left: 0;
-  }
-
-  .volume-control {
+  .toolbar-main {
     flex: 1 1 100%;
     min-width: 0;
-    max-width: none;
+    order: 5;
+  }
+
+  .toolbar-side {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin-left: 0;
+    justify-content: flex-start;
     order: 10;
+  }
+
+  .toolbar-main .line-select-group {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .toolbar-side .player-button-group {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+  }
+
+  .toolbar-side .volume-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
   }
 
   .line-select-group select {

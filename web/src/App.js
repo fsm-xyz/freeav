@@ -23,6 +23,8 @@ const SEARCH_CONFIG_STORAGE_KEY = "aikan.searchConfig";
 const SEARCH_CONFIG_VERSION = 3;
 const LEGACY_DEFAULT_PROXY_URL = "http://127.0.0.1:8787";
 const CUSTOM_OPTION = "custom";
+/** 搜索框占位与「未输入时用」的默认关键词 */
+const DEFAULT_SEARCH_KEYWORD = "寒战";
 const DATA_SOURCE_OPTIONS = [
   { label: "爱看", value: DEFAULT_BASE_URL },
   { label: "自定义", value: CUSTOM_OPTION },
@@ -122,7 +124,7 @@ export default {
 
           <form class="card search-card" @submit.prevent="doSearch">
             <div class="input-row">
-              <input id="keyword" v-model.trim="keyword" placeholder="例如：寒战" />
+              <input id="keyword" v-model.trim="keyword" placeholder="${DEFAULT_SEARCH_KEYWORD}" />
               <button type="submit" :disabled="searching">{{ searching ? '搜索中' : '搜索' }}</button>
               <button
                 type="button"
@@ -222,31 +224,41 @@ export default {
             <video ref="videoEl" controls playsinline></video>
 
             <div class="toolbar">
-              <div class="line-select-group">
-                <button class="line-label copy-line-label" :disabled="!currentLine" title="点击复制当前线路地址" @click="copyCurrentLine">线路</button>
-                <select v-if="lines.length" v-model.number="selectedLineIndex" @change="playSelectedLine">
-                  <option v-for="(line, index) in lines" :key="line.url" :value="index">
-                    {{ lineLabel(line, index) }}
-                  </option>
-                </select>
-                <select v-else disabled>
-                  <option>暂无线路</option>
-                </select>
+              <div class="toolbar-main">
+                <div class="line-select-group">
+                  <button class="line-label copy-line-label" :disabled="!currentLine" title="点击复制当前线路地址" @click="copyCurrentLine">线路</button>
+                  <select v-if="lines.length" v-model.number="selectedLineIndex" @change="playSelectedLine">
+                    <option v-for="(line, index) in lines" :key="line.url" :value="index">
+                      {{ lineLabel(line, index) }}
+                    </option>
+                  </select>
+                  <select v-else disabled>
+                    <option>暂无线路</option>
+                  </select>
+                  <span
+                    v-if="currentSegmentShortLabel"
+                    class="segment-position"
+                    aria-live="polite"
+                    :title="currentSegmentLabel || '当前分片'"
+                  >{{ currentSegmentShortLabel }}</span>
+                </div>
+                <button class="secondary" :disabled="!lines.length || probing" @click="probeLines">
+                  {{ probing ? '检测中' : '检测线路' }}
+                </button>
+                <button class="ghost detail-pill" @click="toggleDetails">
+                  {{ detailsExpanded ? '收起详情' : '详情' }}
+                </button>
               </div>
-              <button class="secondary" :disabled="!lines.length || probing" @click="probeLines">
-                {{ probing ? '检测中' : '检测线路' }}
-              </button>
-              <button class="ghost detail-pill" @click="toggleDetails">
-                {{ detailsExpanded ? '收起详情' : '详情' }}
-              </button>
-              <div class="volume-control" aria-label="音量控制">
-                <span>音量</span>
-                <input v-model.number="volume" type="range" min="0" max="100" step="1" :style="{ '--volume': volume + '%' }" @input="applyVolume" />
-                <button class="ghost" @click="toggleMute">{{ isMuted ? '取消静音' : '静音' }}</button>
-              </div>
-              <div class="player-button-group">
-                <button class="ghost" @click="theaterMode = !theaterMode">{{ theaterMode ? '退出影院' : '影院模式' }}</button>
-                <button class="ghost" @click="copyDiagnostics">复制诊断</button>
+              <div class="toolbar-side">
+                <div class="volume-control" aria-label="音量控制">
+                  <span>音量</span>
+                  <input v-model.number="volume" type="range" min="0" max="100" step="1" :style="{ '--volume': volume + '%' }" @input="applyVolume" />
+                  <button class="ghost" @click="toggleMute">{{ isMuted ? '取消静音' : '静音' }}</button>
+                </div>
+                <div class="player-button-group">
+                  <button class="ghost" @click="theaterMode = !theaterMode">{{ theaterMode ? '退出影院' : '影院模式' }}</button>
+                  <button class="ghost" @click="copyDiagnostics">复制诊断</button>
+                </div>
               </div>
             </div>
           </section>
@@ -264,66 +276,64 @@ export default {
               <div class="section-title">
                 <div class="graph-heading">
                   <h2>分片状态图</h2>
-                  <button class="ghost" @click="toggleSegmentGraph">
-                    {{ segmentGraphExpanded ? '收起' : '展开' }}
-                  </button>
                 </div>
                 <div class="graph-summary">
-                  <span>{{ indexResources.length }} 个索引资源 / {{ mediaSegments.length }} 个媒体分片</span>
+                  <span>{{ indexResources.length }} 个索引资源 / {{ mediaSegments.length }} 个媒体分片 · <em class="graph-playing-hint">黄框为当前播放</em></span>
+                  <span class="graph-actions">单击查看 · 双击跳转</span>
                 </div>
               </div>
-              <template v-if="segmentGraphExpanded">
-                <div class="segment-legend" aria-label="分片状态颜色图例">
-                  <span v-for="item in segmentLegend" :key="item.status">
-                    <i :class="['segment-cell', item.status]"></i>{{ item.label }}
-                  </span>
-                </div>
-                <div v-if="!orderedSegments.length" class="empty">播放后会显示 m3u8 中的 ts/m4s/key 状态。</div>
-                <div v-else class="graph-rows">
-                  <div class="graph-row">
-                    <div class="graph-row-title">索引资源</div>
-                    <div v-if="!indexResources.length" class="graph-row-empty">暂无 m3u8/key</div>
-                    <div v-else class="segment-graph index-graph">
-                      <button
-                        v-for="resource in indexResources"
-                        :key="resource.url"
-                        :class="['segment-cell', resource.status]"
-                        :title="resource.url"
-                        @click="selectedSegment = resource"
-                      >
-                        {{ resourceLabel(resource) }}
-                      </button>
-                    </div>
-                  </div>
-                  <div class="graph-row">
-                    <div class="graph-row-title">媒体分片</div>
-                    <div v-if="!mediaSegments.length" class="graph-row-empty">暂无 ts/m4s/aac 分片</div>
-                    <div v-else class="segment-graph">
-                      <button
-                        v-for="segment in mediaSegments"
-                        :key="segment.url"
-                        :class="['segment-cell', segment.status]"
-                        :title="segment.url"
-                        @click="selectedSegment = segment"
-                      >
-                        {{ segment.displayIndex }}
-                      </button>
-                    </div>
+              <div class="segment-legend" aria-label="分片状态颜色图例">
+                <span v-for="item in segmentLegend" :key="item.status">
+                  <i :class="['segment-cell', item.status]"></i>{{ item.label }}
+                </span>
+              </div>
+              <div v-if="!orderedSegments.length" class="empty">播放后会显示 m3u8 中的 ts/m4s/key 状态。</div>
+              <div v-else class="graph-rows">
+                <div class="graph-row">
+                  <div class="graph-row-title">索引资源</div>
+                  <div v-if="!indexResources.length" class="graph-row-empty">暂无 m3u8/key</div>
+                  <div v-else class="segment-graph index-graph">
+                    <button
+                      v-for="resource in indexResources"
+                      :key="resource.url"
+                      :class="['segment-cell', resource.status]"
+                      :title="resource.url"
+                      @click="selectedSegment = resource"
+                    >
+                      {{ resourceLabel(resource) }}
+                    </button>
                   </div>
                 </div>
-                <div v-if="selectedSegment" class="segment-detail">
-                  <button class="close" @click="selectedSegment = null">x</button>
-                  <h3>{{ selectedSegment.type === 'segment' ? '分片 #' + selectedSegment.displayIndex : resourceLabel(selectedSegment) }}</h3>
-                  <p><b>状态：</b>{{ segmentLabel(selectedSegment.status) }}</p>
-                  <p><b>类型：</b>{{ resourceTypeLabel(selectedSegment.type) }}</p>
-                  <p><b>大小：</b>{{ formatBytes(selectedSegment.size || 0) }}</p>
-                  <p><b>耗时：</b>{{ selectedSegment.durationMs ? formatMs(selectedSegment.durationMs) : '-' }}</p>
-                  <p><b>速度：</b>{{ selectedSegment.speed ? formatSpeed(selectedSegment.speed) : '-' }}</p>
-                  <p v-if="selectedSegment.playlistUrl" class="break-all"><b>所属 m3u8：</b>{{ selectedSegment.playlistUrl }}</p>
-                  <p v-if="selectedSegment.error" class="error"><b>错误：</b>{{ selectedSegment.error }}</p>
-                  <p class="break-all"><b>URL：</b>{{ selectedSegment.url }}</p>
+                <div class="graph-row">
+                  <div class="graph-row-title">媒体分片</div>
+                  <div v-if="!mediaSegments.length" class="graph-row-empty">暂无 ts/m4s/aac 分片</div>
+                  <div v-else class="segment-graph">
+                    <button
+                      v-for="segment in mediaSegments"
+                      :key="segment.url"
+                      :class="['segment-cell', segment.status, { 'is-playing': isPlayingSegment(segment) }]"
+                      :title="'单击查看详情，双击从此分片播放：' + segment.url"
+                      @click="selectedSegment = segment"
+                      @dblclick.stop="seekToSegment(segment)"
+                    >
+                      {{ segment.displayIndex }}
+                    </button>
+                  </div>
                 </div>
-              </template>
+              </div>
+              <div v-if="selectedSegment" class="segment-detail">
+                <button class="close" @click="selectedSegment = null">x</button>
+                <h3>{{ selectedSegment.type === 'segment' ? '分片 #' + selectedSegment.displayIndex : resourceLabel(selectedSegment) }}</h3>
+                <p><b>状态：</b>{{ segmentLabel(selectedSegment.status) }}</p>
+                <p><b>类型：</b>{{ resourceTypeLabel(selectedSegment.type) }}</p>
+                <p><b>片长：</b>{{ formatPlaylistSegmentDuration(selectedSegment.duration) }}</p>
+                <p><b>大小：</b>{{ formatBytes(selectedSegment.size || 0) }}</p>
+                <p><b>下载耗时：</b>{{ selectedSegment.durationMs ? formatMs(selectedSegment.durationMs) : '-' }}</p>
+                <p><b>速度：</b>{{ selectedSegment.speed ? formatSpeed(selectedSegment.speed) : '-' }}</p>
+                <p v-if="selectedSegment.playlistUrl" class="break-all"><b>所属 m3u8：</b>{{ selectedSegment.playlistUrl }}</p>
+                <p v-if="selectedSegment.error" class="error"><b>错误：</b>{{ selectedSegment.error }}</p>
+                <p class="break-all"><b>URL：</b>{{ selectedSegment.url }}</p>
+              </div>
             </section>
 
             <section class="card settings-card">
@@ -347,7 +357,7 @@ export default {
     </div>
   `,
   setup() {
-    const keyword = ref("寒战");
+    const keyword = ref("");
     const manualUrl = ref("");
     const searching = ref(false);
     const configPanelOpen = ref(false);
@@ -360,7 +370,12 @@ export default {
     const selectedLineIndex = ref(0);
     const currentLine = ref(null);
     const selectedSegment = ref(null);
-    const segmentGraphExpanded = ref(false);
+    /** 当前播放分片，如「分片 3 / 120」（依赖 hls.js FRAG_CHANGED） */
+    const currentSegmentLabel = ref("");
+    /** 工具栏简短显示，如「3/120」 */
+    const currentSegmentShortLabel = ref("");
+    /** 与分片方格匹配用的 URL（含代理/解析后与列表对齐） */
+    const currentPlayingSegmentUrl = ref("");
     const videoEl = ref(null);
     const playerCardEl = ref(null);
     const volume = ref(80);
@@ -403,9 +418,9 @@ export default {
     const cacheConfig = reactive({
       maxMB: 256,
       maxEntries: 240,
-      concurrency: 8,
-      initialSegments: 12,
-      aheadSegments: 24,
+      concurrency: 3,
+      initialSegments: 6,
+      aheadSegments: 9,
     });
 
     let hls = null;
@@ -528,15 +543,9 @@ export default {
       }
     }
 
-    function toggleSegmentGraph() {
-      segmentGraphExpanded.value = !segmentGraphExpanded.value;
-      if (!segmentGraphExpanded.value) selectedSegment.value = null;
-    }
-
     function toggleDetails() {
       detailsExpanded.value = !detailsExpanded.value;
       if (!detailsExpanded.value) {
-        segmentGraphExpanded.value = false;
         selectedSegment.value = null;
       }
     }
@@ -557,21 +566,22 @@ export default {
       const el = playerCardEl.value;
       if (!el || typeof el.scrollIntoView !== "function") return;
       try {
-        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        el.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
       } catch (_) {
         el.scrollIntoView(true);
       }
     }
 
     async function doSearch() {
-      if (!keyword.value) {
-        setStatus("请输入关键词", true);
-        return;
-      }
+      const q = (keyword.value || "").trim() || DEFAULT_SEARCH_KEYWORD;
       searching.value = true;
       setStatus("正在搜索...", false);
       try {
-        results.value = await searchAikan(keyword.value, {
+        results.value = await searchAikan(q, {
           baseUrl: activeSearchBaseUrl.value,
           useSearchServer: searchConfig.useSearchServer,
           proxyBaseUrl: activeProxyBaseUrl.value,
@@ -620,9 +630,134 @@ export default {
     }
 
     function destroyHls() {
+      currentSegmentLabel.value = "";
+      currentSegmentShortLabel.value = "";
+      currentPlayingSegmentUrl.value = "";
       if (hls) {
         hls.destroy();
         hls = null;
+      }
+    }
+
+    function resolveFragPlayUrl(frag) {
+      if (!frag) return "";
+      if (frag.url) return String(frag.url);
+      if (frag.relurl && frag.baseurl) {
+        try {
+          return new URL(String(frag.relurl), String(frag.baseurl)).href;
+        } catch (_) {
+          return String(frag.relurl);
+        }
+      }
+      return "";
+    }
+
+    function urlsLikelySameSegment(a, b) {
+      if (!a || !b) return false;
+      if (a === b) return true;
+      try {
+        const ua = new URL(String(a));
+        const ub = new URL(String(b));
+        if (ua.href === ub.href) return true;
+        if (ua.origin === ub.origin && ua.pathname === ub.pathname) {
+          if (ua.search === ub.search) return true;
+          if (!ua.search || !ub.search) return true;
+        }
+      } catch (_) {
+        /* fall through */
+      }
+      const sa = String(a).split(/[?#]/)[0];
+      const sb = String(b).split(/[?#]/)[0];
+      return sa === sb || sa.endsWith(sb) || sb.endsWith(sa);
+    }
+
+    function updateLabelFromFrag(frag) {
+      const playUrl = resolveFragPlayUrl(frag);
+      if (!playUrl) {
+        currentSegmentLabel.value = "";
+        currentSegmentShortLabel.value = "";
+        currentPlayingSegmentUrl.value = "";
+        return;
+      }
+      const list = mediaSegments.value;
+      const total = list.length;
+      const idx = list.findIndex((s) => urlsLikelySameSegment(s.url, playUrl));
+      if (idx >= 0 && total > 0) {
+        const canonical = list[idx].url;
+        currentPlayingSegmentUrl.value = canonical;
+        currentSegmentLabel.value = `分片 ${idx + 1} / ${total}`;
+        currentSegmentShortLabel.value = `${idx + 1}/${total}`;
+        return;
+      }
+      currentPlayingSegmentUrl.value = playUrl;
+      const sn = frag.sn;
+      const snNum = typeof sn === "number" ? sn : Number(sn);
+      if (Number.isFinite(snNum)) {
+        currentSegmentLabel.value =
+          total > 0 ? `分片 #${snNum}（共 ${total}）` : `分片 #${snNum}`;
+        currentSegmentShortLabel.value =
+          total > 0 ? `#${snNum}/${total}` : `#${snNum}`;
+        return;
+      }
+      currentSegmentLabel.value = "";
+      currentSegmentShortLabel.value = "";
+      currentPlayingSegmentUrl.value = "";
+    }
+
+    function isPlayingSegment(segment) {
+      const refUrl = currentPlayingSegmentUrl.value;
+      if (!segment?.url || !refUrl) return false;
+      return urlsLikelySameSegment(segment.url, refUrl);
+    }
+
+    function segmentDurationSeconds(segment) {
+      const duration = Number(segment?.duration);
+      return Number.isFinite(duration) && duration > 0 ? duration : 0;
+    }
+
+    function segmentStartSeconds(segment) {
+      const list = mediaSegments.value;
+      const index = list.findIndex((item) =>
+        urlsLikelySameSegment(item.url, segment?.url),
+      );
+      if (index < 0) return null;
+      return list
+        .slice(0, index)
+        .reduce((total, item) => total + segmentDurationSeconds(item), 0);
+    }
+
+    async function seekToSegment(segment) {
+      const video = videoEl.value;
+      if (!video || segment?.type !== "segment") return;
+      const targetSeconds = segmentStartSeconds(segment);
+      if (targetSeconds == null) {
+        setStatus("没有找到这个分片在播放列表中的位置。", true);
+        return;
+      }
+      if (targetSeconds <= 0 && segment?.displayIndex > 1) {
+        setStatus("这个分片缺少 #EXTINF 时长，暂时无法计算跳转时间。", true);
+        return;
+      }
+
+      currentPlayingSegmentUrl.value = segment.url;
+      currentSegmentLabel.value = `分片 ${segment.displayIndex} / ${mediaSegments.value.length}`;
+      currentSegmentShortLabel.value = `${segment.displayIndex}/${mediaSegments.value.length}`;
+      selectedSegment.value = segment;
+
+      try {
+        if (hls && typeof hls.startLoad === "function") {
+          hls.startLoad(targetSeconds);
+        }
+        video.currentTime = targetSeconds;
+        await video.play();
+        setStatus(`已跳转到分片 ${segment.displayIndex}`, false);
+      } catch (error) {
+        setStatus(
+          error?.name === "NotAllowedError"
+            ? "已跳转，请手动点击播放。"
+            : error.message || String(error),
+          true,
+        );
       }
     }
 
@@ -684,6 +819,13 @@ export default {
             setStatus(`播放器错误：${data.details}`, true);
             destroyHls();
           }
+        });
+        hls.on(Hls.Events.FRAG_CHANGED, (_, data) => {
+          const frag = data?.frag;
+          if (!frag) return;
+          if (frag.type === "audio" || frag.type === "subtitle") return;
+          if (frag.sn === "initSegment") return;
+          updateLabelFromFrag(frag);
         });
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = playbackUrl;
@@ -819,6 +961,25 @@ export default {
       return `${Math.round(ms)} ms`;
     }
 
+    /** m3u8 #EXTINF 标称时长（秒） */
+    function formatPlaylistSegmentDuration(seconds) {
+      if (seconds == null) return "-";
+      const s = Number(seconds);
+      if (!Number.isFinite(s) || s <= 0) return "-";
+      if (s >= 3600) {
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = s - h * 3600 - m * 60;
+        return `${h}:${String(m).padStart(2, "0")}:${sec.toFixed(2).padStart(5, "0")}`;
+      }
+      if (s >= 60) {
+        const m = Math.floor(s / 60);
+        const sec = s - m * 60;
+        return `${m} 分 ${sec.toFixed(3).replace(/\.?0+$/, "")} 秒`;
+      }
+      return `${s.toFixed(3).replace(/\.?0+$/, "")} 秒`;
+    }
+
     function segmentLabel(statusName) {
       const labels = {
         discovered: "已发现",
@@ -881,7 +1042,10 @@ export default {
       selectedLineIndex,
       currentLine,
       selectedSegment,
-      segmentGraphExpanded,
+      currentSegmentLabel,
+      currentSegmentShortLabel,
+      isPlayingSegment,
+      seekToSegment,
       videoEl,
       playerCardEl,
       volume,
@@ -913,7 +1077,6 @@ export default {
       applyVolume,
       toggleMute,
       toggleDetails,
-      toggleSegmentGraph,
       applySourcePreset,
       applyProxyServerPreset,
       saveSearchConfig,
@@ -925,6 +1088,7 @@ export default {
       formatBytes,
       formatSpeed,
       formatMs,
+      formatPlaylistSegmentDuration,
       segmentLabel,
       resourceTypeLabel,
       resourceLabel,
