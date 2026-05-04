@@ -1,10 +1,10 @@
 # Aikan Axum 技术架构
 
-本文档描述 `aikan-axum` 当前实现的技术架构、请求链路、构建方式和关键设计细节。
+本文档描述 `freeav` 当前实现的技术架构、请求链路、构建方式和关键设计细节。
 
 ## 项目目标
 
-`aikan-axum` 是一个 Rust/Axum 后端与静态 Web 前端打包在一起的本地服务。构建时先生成 `web/dist`，再通过 `rust-embed` 将静态资源嵌入 Rust 二进制，最终产物可以作为单个可执行文件运行。
+`freeav` 是一个 Rust/Axum 后端与静态 Web 前端打包在一起的本地服务。构建时先生成 `web/dist`，再通过 `rust-embed` 将静态资源嵌入 Rust 二进制，最终产物可以作为单个可执行文件运行。
 
 当前默认模式下：
 
@@ -16,7 +16,7 @@
 ## 目录结构
 
 ```text
-aikan-axum/
+freeav/
   src/
     main.rs              # Axum 服务、API 路由、静态资源嵌入、源站请求与解析
   web/

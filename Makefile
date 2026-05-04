@@ -1,4 +1,4 @@
-APP_NAME := aikan-axum
+APP_NAME := freeav
 CARGO := cargo
 WEB_DIR := web
 DIST_DIR := dist
