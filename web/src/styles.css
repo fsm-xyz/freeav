@@ -134,6 +134,7 @@ video {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.45rem;
+  max-width: 100%;
 }
 
 .toolbar,
@@ -405,6 +406,37 @@ video {
   gap: 1rem;
 }
 
+@media (max-width: 1100px) {
+  .layout:not(.theater) .search-column,
+  .layout:not(.theater) .play-column {
+    display: contents;
+  }
+
+  .layout:not(.theater) > .search-column > header.hero.card {
+    order: 10;
+  }
+
+  .layout:not(.theater) > .search-column > form.search-card {
+    order: 20;
+  }
+
+  .layout:not(.theater) > .search-column > section.manual-card {
+    order: 30;
+  }
+
+  .layout:not(.theater) > .play-column > section.player-card {
+    order: 40;
+  }
+
+  .layout:not(.theater) > .search-column > section.results-card {
+    order: 50;
+  }
+
+  .layout:not(.theater) > .play-column > *:not(.player-card) {
+    order: 60;
+  }
+}
+
 .search-card,
 .manual-card,
 .results-card,
@@ -416,14 +448,41 @@ video {
 
 .input-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.65rem;
+  align-items: stretch;
+}
+
+.input-row > input,
+.input-row > select {
+  min-width: 0;
+}
+
+.search-config-panel {
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.22);
 }
 
 .search-config {
   display: grid;
   gap: 0.75rem;
-  margin-top: 0.85rem;
+}
+
+.search-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+  padding-top: 0.35rem;
+  margin-top: 0.15rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.search-config-actions button {
+  min-width: 6.5rem;
 }
 
 .combo-row {
@@ -786,14 +845,6 @@ video {
     grid-template-columns: 1fr;
   }
 
-  .search-column {
-    order: 2;
-  }
-
-  .play-column {
-    order: 1;
-  }
-
   .status-grid,
   .settings-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -805,12 +856,16 @@ video {
     padding: 0.75rem;
   }
 
-  .search-column {
-    order: 1;
+  .hero-feature-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 0.15rem;
   }
 
-  .play-column {
-    order: 2;
+  .feature-pills {
+    flex-wrap: nowrap;
   }
 
   .hero,
@@ -819,13 +874,35 @@ video {
     flex-direction: column;
   }
 
+  .search-card .input-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .manual-card .input-row,
+  .input-row-compact {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .combo-row {
+    grid-template-columns: minmax(6.25rem, 0.42fr) minmax(0, 1fr);
+  }
+
   .toolbar {
+    align-items: stretch;
     gap: 0.55rem 0.65rem;
     padding-bottom: 0.1rem;
   }
 
   .line-select-group {
-    flex: 1 1 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+    order: 5;
+  }
+
+  .toolbar > .secondary,
+  .toolbar > .ghost.detail-pill,
+  .player-button-group {
+    order: 5;
   }
 
   .player-button-group {
@@ -837,13 +914,23 @@ video {
   .volume-control {
     flex: 1 1 100%;
     min-width: 0;
+    max-width: none;
+    order: 10;
   }
 
   .line-select-group select {
-    flex: 0 0 10rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
   }
 
-  .input-row,
+  .volume-control input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    height: 1.5rem;
+  }
+
   .result-item {
     grid-template-columns: 1fr;
   }

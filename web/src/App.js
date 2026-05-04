@@ -1,5 +1,6 @@
 import {
   computed,
+  nextTick,
   onBeforeUnmount,
   reactive,
   ref,
@@ -23,7 +24,7 @@ const SEARCH_CONFIG_VERSION = 3;
 const LEGACY_DEFAULT_PROXY_URL = "http://127.0.0.1:8787";
 const CUSTOM_OPTION = "custom";
 const DATA_SOURCE_OPTIONS = [
-  { label: "爱看机器人", value: DEFAULT_BASE_URL },
+  { label: "爱看", value: DEFAULT_BASE_URL },
   { label: "自定义", value: CUSTOM_OPTION },
 ];
 const CODE_SERVER_OPTIONS = [
@@ -122,56 +123,70 @@ export default {
           <form class="card search-card" @submit.prevent="doSearch">
             <div class="input-row">
               <input id="keyword" v-model.trim="keyword" placeholder="例如：寒战" />
-              <button :disabled="searching">{{ searching ? '搜索中' : '搜索' }}</button>
+              <button type="submit" :disabled="searching">{{ searching ? '搜索中' : '搜索' }}</button>
+              <button
+                type="button"
+                class="ghost"
+                :aria-expanded="configPanelOpen ? 'true' : 'false'"
+                aria-controls="search-config-panel"
+                @click="configPanelOpen = !configPanelOpen"
+              >
+                {{ configPanelOpen ? '收起' : '配置' }}
+              </button>
             </div>
-            <div class="search-config">
-              <div class="config-title">数据源配置</div>
-              <label>
-                <div class="combo-row">
-                  <select v-model="searchConfig.sourcePreset" @change="applySourcePreset">
-                    <option v-for="option in dataSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                  </select>
-                  <input
-                    v-model.trim="searchConfig.serverUrl"
-                    :disabled="searchConfig.sourcePreset !== customOption"
-                    placeholder="https://v.aikanbot.com"
-                  />
-                </div>
-              </label>
+            <div v-show="configPanelOpen" id="search-config-panel" class="search-config-panel">
+              <div class="search-config">
+                <div class="config-title">数据源</div>
+                <label>
+                  <div class="combo-row">
+                    <select v-model="searchConfig.sourcePreset" @change="applySourcePreset">
+                      <option v-for="option in dataSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                    </select>
+                    <input
+                      v-model.trim="searchConfig.serverUrl"
+                      :disabled="searchConfig.sourcePreset !== customOption"
+                      placeholder="https://v.aikanbot.com"
+                    />
+                  </div>
+                </label>
 
-              <div class="config-title">代理配置</div>
-              <label class="switch-row">
-                <input v-model="searchConfig.useSearchServer" type="checkbox" />
-                <span>搜索</span>
-              </label>
-              <label class="switch-row">
-                <input v-model="searchConfig.useResolveServer" type="checkbox" />
-                <span>解析线路</span>
-              </label>
-              <label class="switch-row">
-                <input v-model="searchConfig.usePlaybackProxy" type="checkbox" />
-                <span>分片缓存</span>
-              </label>
-              <label>
-                代理服务器
-                <div class="combo-row">
-                  <select v-model="searchConfig.proxyServerPreset" @change="applyProxyServerPreset">
-                    <option v-for="option in codeServerOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                  </select>
-                  <input
-                    v-model.trim="searchConfig.proxyServerUrl"
-                    :disabled="!usesCodeServer || searchConfig.proxyServerPreset !== customOption"
-                    :placeholder="activeProxyBaseUrl"
-                  />
+                <div class="config-title">代理</div>
+                <label class="switch-row">
+                  <input v-model="searchConfig.useSearchServer" type="checkbox" />
+                  <span>搜索</span>
+                </label>
+                <label class="switch-row">
+                  <input v-model="searchConfig.useResolveServer" type="checkbox" />
+                  <span>解析线路</span>
+                </label>
+                <label class="switch-row">
+                  <input v-model="searchConfig.usePlaybackProxy" type="checkbox" />
+                  <span>分片缓存</span>
+                </label>
+                <label>
+                  <div class="combo-row">
+                    <select v-model="searchConfig.proxyServerPreset" @change="applyProxyServerPreset">
+                      <option v-for="option in codeServerOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                    </select>
+                    <input
+                      v-model.trim="searchConfig.proxyServerUrl"
+                      :disabled="!usesCodeServer || searchConfig.proxyServerPreset !== customOption"
+                      :placeholder="activeProxyBaseUrl"
+                    />
+                  </div>
+                </label>
+                <div class="search-config-actions">
+                  <button type="button" class="secondary" @click="saveSearchConfig">保存</button>
+                  <button type="button" class="ghost" @click="resetSearchConfigDefaults">重置</button>
                 </div>
-              </label>
+              </div>
             </div>
           </form>
 
           <section class="card manual-card">
-            <div class="input-row">
+            <div class="input-row input-row-compact">
               <input id="manualUrl" v-model.trim="manualUrl" placeholder="粘贴 .m3u8 地址播放" />
-              <button class="secondary" @click="playManual">播放</button>
+              <button type="button" class="secondary" @click="playManual">播放</button>
             </div>
           </section>
 
@@ -202,8 +217,8 @@ export default {
           </section>
         </section>
 
-        <section class="play-column">
-          <section class="card player-card">
+          <section class="play-column">
+          <section ref="playerCardEl" class="card player-card">
             <video ref="videoEl" controls playsinline></video>
 
             <div class="toolbar">
@@ -335,6 +350,7 @@ export default {
     const keyword = ref("寒战");
     const manualUrl = ref("");
     const searching = ref(false);
+    const configPanelOpen = ref(false);
     const resolvingId = ref("");
     const probing = ref(false);
     const theaterMode = ref(false);
@@ -346,6 +362,7 @@ export default {
     const selectedSegment = ref(null);
     const segmentGraphExpanded = ref(false);
     const videoEl = ref(null);
+    const playerCardEl = ref(null);
     const volume = ref(80);
     const isMuted = ref(false);
     const status = reactive({ message: "", error: false });
@@ -442,25 +459,40 @@ export default {
       ].join(" / "),
     );
 
-    watch(
-      searchConfig,
-      () => {
-        window.localStorage?.setItem(
-          SEARCH_CONFIG_STORAGE_KEY,
-          JSON.stringify({
-            configVersion: SEARCH_CONFIG_VERSION,
-            sourcePreset: searchConfig.sourcePreset,
-            serverUrl: searchConfig.serverUrl,
-            useSearchServer: searchConfig.useSearchServer,
-            useResolveServer: searchConfig.useResolveServer,
-            usePlaybackProxy: searchConfig.usePlaybackProxy,
-            proxyServerPreset: searchConfig.proxyServerPreset,
-            proxyServerUrl: searchConfig.proxyServerUrl,
-          }),
-        );
-      },
-      { deep: true },
-    );
+    function persistSearchConfig() {
+      window.localStorage?.setItem(
+        SEARCH_CONFIG_STORAGE_KEY,
+        JSON.stringify({
+          configVersion: SEARCH_CONFIG_VERSION,
+          sourcePreset: searchConfig.sourcePreset,
+          serverUrl: searchConfig.serverUrl,
+          useSearchServer: searchConfig.useSearchServer,
+          useResolveServer: searchConfig.useResolveServer,
+          usePlaybackProxy: searchConfig.usePlaybackProxy,
+          proxyServerPreset: searchConfig.proxyServerPreset,
+          proxyServerUrl: searchConfig.proxyServerUrl,
+        }),
+      );
+    }
+
+    watch(searchConfig, persistSearchConfig, { deep: true });
+
+    function saveSearchConfig() {
+      persistSearchConfig();
+      setStatus("配置已保存。", false);
+    }
+
+    function resetSearchConfigDefaults() {
+      searchConfig.sourcePreset = DEFAULT_BASE_URL;
+      searchConfig.serverUrl = DEFAULT_BASE_URL;
+      searchConfig.useSearchServer = true;
+      searchConfig.useResolveServer = true;
+      searchConfig.usePlaybackProxy = false;
+      searchConfig.proxyServerPreset = DEFAULT_PROXY_URL;
+      searchConfig.proxyServerUrl = DEFAULT_PROXY_URL;
+      persistSearchConfig();
+      setStatus("已恢复默认配置。", false);
+    }
 
     function onLoaderEvent(event) {
       if (event.metrics) Object.assign(metrics, event.metrics);
@@ -521,6 +553,16 @@ export default {
       }
     }
 
+    function scrollPlayerCardIntoView() {
+      const el = playerCardEl.value;
+      if (!el || typeof el.scrollIntoView !== "function") return;
+      try {
+        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+      } catch (_) {
+        el.scrollIntoView(true);
+      }
+    }
+
     async function doSearch() {
       if (!keyword.value) {
         setStatus("请输入关键词", true);
@@ -554,7 +596,11 @@ export default {
         lines.value = data.lines;
         selectedLineIndex.value = 0;
         setStatus(`解析完成：${data.lines.length} 条线路`, false);
-        if (data.lines[0]) await playLine(data.lines[0], 0);
+        if (data.lines[0]) {
+          await playLine(data.lines[0], 0);
+          await nextTick();
+          scrollPlayerCardIntoView();
+        }
       } catch (error) {
         setStatus(error.message || String(error), true);
       } finally {
@@ -825,6 +871,7 @@ export default {
       keyword,
       manualUrl,
       searching,
+      configPanelOpen,
       resolvingId,
       probing,
       theaterMode,
@@ -836,6 +883,7 @@ export default {
       selectedSegment,
       segmentGraphExpanded,
       videoEl,
+      playerCardEl,
       volume,
       isMuted,
       status,
@@ -868,6 +916,8 @@ export default {
       toggleSegmentGraph,
       applySourcePreset,
       applyProxyServerPreset,
+      saveSearchConfig,
+      resetSearchConfigDefaults,
       copyDiagnostics,
       copyText,
       copyCurrentLine,
