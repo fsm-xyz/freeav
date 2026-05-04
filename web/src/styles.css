@@ -115,8 +115,9 @@ video {
 
 .hero-content {
   display: grid;
-  justify-items: center;
+  justify-items: stretch;
   gap: 0.5rem;
+  width: 100%;
 }
 
 .hero-main {
@@ -125,6 +126,14 @@ video {
   justify-content: center;
   align-items: center;
   gap: 0.75rem 1rem;
+  width: 100%;
+}
+
+.hero-feature-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .toolbar,
@@ -305,8 +314,33 @@ video {
 .feature-pills {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.45rem;
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.75rem;
+  min-width: 1.75rem;
+  border-radius: 999px;
+  padding: 0.28rem;
+  background: rgba(148, 163, 184, 0.16);
+  color: #e5e7eb;
+  line-height: 0;
+  text-decoration: none;
+}
+
+.github-link:hover {
+  background: rgba(148, 163, 184, 0.26);
+  color: #fff;
+}
+
+.github-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: block;
 }
 
 .feature-pill {

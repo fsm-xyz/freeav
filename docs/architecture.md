@@ -40,7 +40,7 @@ freeav/
 
 ## 后端架构
 
-后端入口位于 `src/main.rs`，运行时绑定 `127.0.0.1`，默认端口为 `8787`。端口可以通过命令行第一个参数或 `PORT` 环境变量覆盖。
+后端入口位于 `src/main.rs`，默认绑定 `127.0.0.1:8787`。监听地址可以通过 `HOST` 环境变量覆盖，端口可以通过命令行第一个参数或 `PORT` 环境变量覆盖。
 
 核心组件：
 
@@ -109,6 +109,137 @@ freeav/
 3. 如果资源是 m3u8，则重写其中的分片、子播放列表和 key 地址，让后续请求继续走 `/api/proxy`。
 4. 添加 `Access-Control-Allow-Origin: *` 和 `Cache-Control: no-store`。
 
+## 兼容服务接口约定
+
+前端并不强依赖当前 Rust 后端的内部解析方式。其他服务器只要提供兼容的 `/api/search`、`/api/m3u8` 和可选 `/api/proxy` 接口，就可以作为“代理服务器”直接接入当前播放器。
+
+### 最小播放链路
+
+前端默认流程需要两步：
+
+1. `/api/search` 返回搜索结果，每条结果至少包含可用于后续解析的 `videoId`。
+2. 用户点击某条结果后，前端用该 `videoId` 请求 `/api/m3u8`，接口返回一个或多个 m3u8 播放线路。
+
+播放器真正播放时只依赖线路里的 `url`。如果不需要搜索列表展示，理论上也可以通过手动输入 m3u8 地址直接播放。
+
+### 搜索响应
+
+请求：
+
+```http
+GET /api/search?q=寒战&baseUrl=https%3A%2F%2Fv.aikanbot.com
+```
+
+响应：
+
+```json
+{
+  "results": [
+    {
+      "videoId": "12345",
+      "title": "寒战",
+      "url": "https://example.com/play/12345",
+      "thumb": "https://example.com/poster.jpg",
+      "playableCount": 3,
+      "playableLabel": "[3条线路可播放]",
+      "meta": "2012 / 中国香港 / 动作",
+      "cast": "郭富城 / 梁家辉",
+      "tags": ["2012", "动作"],
+      "summary": "2012 / 中国香港 / 动作\n郭富城 / 梁家辉",
+      "source": "example"
+    }
+  ]
+}
+```
+
+字段说明：
+
+- `results`：数组，必填。
+- `videoId` 或 `video_id`：必填，前端解析线路时会传给 `/api/m3u8`。
+- `title`：建议提供，用于搜索结果展示和解析提示。
+- `url`：可选，用于“打开源页”按钮。
+- `thumb`：可选，搜索结果封面。跨域或防盗链图片建议服务端改写为同源代理 URL。
+- `playableCount` 或 `playable_count`：可选，可播放线路数量。
+- `playableLabel` 或 `playable_label`：可选，优先展示的线路提示文案。
+- `meta`、`cast`、`tags`、`summary`、`source`：可选，只影响展示。
+
+### 播放线路响应
+
+请求：
+
+```http
+GET /api/m3u8?videoId=12345&baseUrl=https%3A%2F%2Fv.aikanbot.com
+```
+
+响应：
+
+```json
+{
+  "videoId": "12345",
+  "apiUrl": "https://example.com/api/getResN?videoId=12345",
+  "lines": [
+    {
+      "flag": "线路A",
+      "name": "高清",
+      "url": "https://media.example.com/live/12345/index.m3u8"
+    }
+  ]
+}
+```
+
+字段说明：
+
+- `lines`：数组，必填。
+- `lines[].url`：必填，播放器加载的 m3u8 地址。
+- `lines[].name`：可选，线路下拉框展示名称；为空时前端会显示 `线路 N`。
+- `lines[].flag`：可选，线路分组或来源标识。
+- `videoId`：可选，缺省时前端沿用请求传入的 `videoId`。
+- `apiUrl`：可选，仅用于诊断或展示，不参与播放。
+
+### 一步解析响应
+
+`/api/resolve` 用于把搜索和第一条结果解析合并成一步。它不是当前页面主流程的必需接口，但兼容服务器可以提供：
+
+```json
+{
+  "results": [],
+  "selected": null,
+  "apiUrl": "",
+  "lines": []
+}
+```
+
+其中 `results` 与 `/api/search` 一致，`lines` 与 `/api/m3u8` 一致，`selected` 是被自动选中的搜索结果。
+
+### 代理接口
+
+`/api/proxy` 是可选接口。只有当前端启用“分片缓存”或服务端返回了代理后的封面 URL 时才需要它。
+
+请求：
+
+```http
+GET /api/proxy?url=https%3A%2F%2Fmedia.example.com%2Findex.m3u8&referer=https%3A%2F%2Fmedia.example.com%2F
+```
+
+兼容要求：
+
+- 返回目标资源的原始字节。
+- 设置合理的 `Content-Type`。
+- 如果目标是 m3u8，建议把其中的相对分片、子 m3u8 和 key 地址改写为同源 `/api/proxy` URL。
+- 如果兼容服务和页面不是同源部署，需要允许浏览器跨域访问。
+
+### 错误响应
+
+前端会识别 JSON 中的 `error` 字段并直接展示：
+
+```json
+{
+  "error": "missing or invalid videoId"
+}
+```
+
+建议错误响应使用非 2xx HTTP 状态码，并返回上述 JSON 结构。
+
 ## 前端架构
 
 前端是基于 Vue Options API 的单文件式模块组织，入口是 `web/src/main.js`，主应用在 `web/src/App.js`。
@@ -120,7 +251,7 @@ freeav/
 - 播放状态：当前线路、选择的线路、音量、影院模式。
 - HLS 缓存指标：请求数、成功数、失败数、命中率、缓存大小、速度和分片状态。
 
-配置持久化在浏览器 `localStorage` 的 `aikan.searchConfig` 中。当前配置版本为 `2`，默认启用服务端搜索和服务端解析。旧配置会迁移为服务端解析默认开启，用户之后手动关闭会被保留。
+配置持久化在浏览器 `localStorage` 的 `aikan.searchConfig` 中。当前配置版本为 `3`，默认启用服务端搜索和服务端解析。旧配置会迁移为服务端解析默认开启，默认代理服务器会迁移为当前页面的 `window.location.origin`，用户之后手动关闭或自定义会被保留。
 
 ## 搜索和解析链路
 
@@ -205,13 +336,15 @@ make dist
 服务端：
 
 - 默认监听：`http://127.0.0.1:8787`
-- 覆盖端口：`PORT=9000 make run`
+- 覆盖监听地址：`HOST=0.0.0.0 PORT=9000 make run`
+- PowerShell 写法：`$env:HOST="0.0.0.0"; $env:PORT=9000; make run`
+- 端口也可以作为第一个命令行参数传给程序：`cargo run -- 9000`
 - Windows 下 Makefile 使用 `rustup run stable-x86_64-pc-windows-msvc cargo`
 
 前端：
 
 - 默认数据源：`https://v.aikanbot.com`
-- 默认代理服务器：`http://127.0.0.1:8787`
+- 默认代理服务器：当前页面的 `window.location.origin`，即用户访问网站时使用的同一个协议、主机和端口。
 - 数据源和代理服务器都支持自定义。
 - 搜索和解析默认走服务端。
 - 播放代理缓存默认关闭，由用户在界面中开启。

@@ -12,10 +12,16 @@ use reqwest::Client;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{borrow::Cow, net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    borrow::Cow,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 use url::{form_urlencoded, Url};
 
 const BASE_URL: &str = "https://v.aikanbot.com";
+const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 8787;
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
 
@@ -151,6 +157,10 @@ async fn main() -> anyhow::Result<()> {
                 .and_then(|value| value.parse().ok())
         })
         .unwrap_or(DEFAULT_PORT);
+    let host = std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_string());
+    let host: IpAddr = host
+        .parse()
+        .map_err(|error| anyhow::anyhow!("invalid HOST `{host}`: {error}"))?;
 
     let client = Client::builder()
         .timeout(Duration::from_secs(30))
@@ -166,7 +176,7 @@ async fn main() -> anyhow::Result<()> {
         .fallback(static_handler)
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = SocketAddr::new(host, port);
     println!("Aikan Axum server: http://{addr}");
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;

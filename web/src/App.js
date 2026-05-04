@@ -19,14 +19,15 @@ import {
 } from "./services/aikan.js";
 
 const SEARCH_CONFIG_STORAGE_KEY = "aikan.searchConfig";
-const SEARCH_CONFIG_VERSION = 2;
+const SEARCH_CONFIG_VERSION = 3;
+const LEGACY_DEFAULT_PROXY_URL = "http://127.0.0.1:8787";
 const CUSTOM_OPTION = "custom";
 const DATA_SOURCE_OPTIONS = [
   { label: "爱看机器人", value: DEFAULT_BASE_URL },
   { label: "自定义", value: CUSTOM_OPTION },
 ];
 const CODE_SERVER_OPTIONS = [
-  { label: "本机", value: DEFAULT_PROXY_URL },
+  { label: "当前网站", value: DEFAULT_PROXY_URL },
   { label: "自定义", value: CUSTOM_OPTION },
 ];
 
@@ -46,8 +47,19 @@ function loadSearchConfig() {
       window.localStorage?.getItem(SEARCH_CONFIG_STORAGE_KEY) || "{}",
     );
     const serverUrl = parsed.serverUrl || DEFAULT_BASE_URL;
-    const proxyServerUrl = parsed.proxyServerUrl || DEFAULT_PROXY_URL;
     const isCurrentConfig = parsed.configVersion >= SEARCH_CONFIG_VERSION;
+    const parsedProxyServerUrl = parsed.proxyServerUrl || DEFAULT_PROXY_URL;
+    const isLegacyDefaultProxy =
+      !isCurrentConfig &&
+      normalizeProxyServerUrl(parsedProxyServerUrl) ===
+        LEGACY_DEFAULT_PROXY_URL;
+    const proxyServerUrl = isLegacyDefaultProxy
+      ? DEFAULT_PROXY_URL
+      : parsedProxyServerUrl;
+    const proxyServerPreset =
+      !isCurrentConfig && parsed.proxyServerPreset === LEGACY_DEFAULT_PROXY_URL
+        ? DEFAULT_PROXY_URL
+        : parsed.proxyServerPreset;
     return {
       sourcePreset:
         parsed.sourcePreset ||
@@ -61,7 +73,7 @@ function loadSearchConfig() {
         : true,
       usePlaybackProxy: Boolean(parsed.usePlaybackProxy),
       proxyServerPreset:
-        parsed.proxyServerPreset ||
+        proxyServerPreset ||
         (proxyServerUrl !== DEFAULT_PROXY_URL
           ? CUSTOM_OPTION
           : DEFAULT_PROXY_URL),
@@ -81,10 +93,27 @@ export default {
           <header class="hero card">
             <div class="hero-content">
               <div class="hero-main">
-                <div class="feature-pills" aria-label="功能特性">
-                  <span class="feature-pill search">服务端搜索</span>
-                  <span class="feature-pill parse">服务端解析</span>
-                  <span class="feature-pill prefetch">HLS并发加载</span>
+                <div class="hero-feature-row">
+                  <div class="feature-pills" aria-label="功能特性">
+                    <span class="feature-pill search">服务端搜索</span>
+                    <span class="feature-pill parse">服务端解析</span>
+                    <span class="feature-pill prefetch">HLS并发加载</span>
+                  </div>
+                  <a
+                    class="github-link"
+                    href="https://github.com/fsm-xyz/freeav"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="GitHub"
+                    title="GitHub: fsm-xyz"
+                  >
+                    <svg class="github-icon" viewBox="0 0 16 16" role="img" aria-hidden="true" focusable="false">
+                      <path
+                        fill="currentColor"
+                        d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+                      />
+                    </svg>
+                  </a>
                 </div>
               </div>
             </div>
@@ -132,7 +161,7 @@ export default {
                   <input
                     v-model.trim="searchConfig.proxyServerUrl"
                     :disabled="!usesCodeServer || searchConfig.proxyServerPreset !== customOption"
-                    placeholder="http://127.0.0.1:8787"
+                    :placeholder="activeProxyBaseUrl"
                   />
                 </div>
               </label>

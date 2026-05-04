@@ -26,11 +26,19 @@ This builds `web/dist` first, then compiles the release binary with the generate
 make run
 ```
 
-The service listens on `http://127.0.0.1:8787` by default. You can override the port with:
+The service listens on `http://127.0.0.1:8787` by default. You can override the host and port with:
 
 ```sh
-PORT=9000 make run
+HOST=0.0.0.0 PORT=9000 make run
 ```
+
+On PowerShell:
+
+```powershell
+$env:HOST="0.0.0.0"; $env:PORT=9000; make run
+```
+
+The frontend uses the current website origin as the default proxy server. For example, opening `http://192.168.1.10:9000` makes the default API/proxy base URL `http://192.168.1.10:9000`.
 
 ## API Routes
 

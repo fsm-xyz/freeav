@@ -1,5 +1,12 @@
 export const DEFAULT_BASE_URL = 'https://v.aikanbot.com';
-export const DEFAULT_PROXY_URL = 'http://127.0.0.1:8787';
+export const DEFAULT_PROXY_URL = defaultProxyUrl();
+
+function defaultProxyUrl() {
+  if (typeof window !== 'undefined' && window.location?.origin && window.location.origin !== 'null') {
+    return window.location.origin;
+  }
+  return 'http://127.0.0.1:8787';
+}
 
 function normalizeBaseUrl(rawUrl, fallback) {
   const value = String(rawUrl || '').trim() || fallback;
